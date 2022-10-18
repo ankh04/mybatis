@@ -25,6 +25,7 @@ public class PropertyParser {
 
   private static final String KEY_PREFIX = "org.apache.ibatis.parsing.PropertyParser.";
   /**
+   * properties节点下配置是否开启默认功能的开关
    * The special property key that indicate whether enable a default value on placeholder.
    * <p>
    *   The default value is {@code false} (indicate disable a default value on placeholder)
@@ -35,6 +36,7 @@ public class PropertyParser {
   public static final String KEY_ENABLE_DEFAULT_VALUE = KEY_PREFIX + "enable-default-value";
 
   /**
+   * 默认值分隔符的配置项
    * The special property key that specify a separator for key and default value on placeholder.
    * <p>
    *   The default separator is {@code ":"}.
@@ -43,7 +45,9 @@ public class PropertyParser {
    */
   public static final String KEY_DEFAULT_VALUE_SEPARATOR = KEY_PREFIX + "default-value-separator";
 
+  // 默认值功能的默认值是false, 需要手动开启
   private static final String ENABLE_DEFAULT_VALUE = "false";
+  // 默认分隔符的默认值是 分号
   private static final String DEFAULT_VALUE_SEPARATOR = ":";
 
   private PropertyParser() {
@@ -52,6 +56,8 @@ public class PropertyParser {
 
   public static String parse(String string, Properties variables) {
     VariableTokenHandler handler = new VariableTokenHandler(variables);
+    // 使用GenericTokenParser对占位符${}进行处理
+    // 使用variableHandler进行处理
     GenericTokenParser parser = new GenericTokenParser("${", "}", handler);
     return parser.parse(string);
   }
@@ -71,10 +77,17 @@ public class PropertyParser {
       return (variables == null) ? defaultValue : variables.getProperty(key, defaultValue);
     }
 
+    /**
+     * 对Token进行处理
+     * @param content
+     * @return
+     */
     @Override
     public String handleToken(String content) {
+      // 先检测变量集合是否为空
       if (variables != null) {
         String key = content;
+        // 检查是否支持默认值功能(默认是不支持)
         if (enableDefaultValue) {
           final int separatorIndex = content.indexOf(defaultValueSeparator);
           String defaultValue = null;
@@ -83,13 +96,17 @@ public class PropertyParser {
             defaultValue = content.substring(separatorIndex + defaultValueSeparator.length());
           }
           if (defaultValue != null) {
+            // 默认值不为空，就调用getProperty返回property
             return variables.getProperty(key, defaultValue);
           }
         }
+        // 如果不支持默认值功能，或默认值为空
         if (variables.containsKey(key)) {
+          // 查找变量集合中是否有对应的key，有的话就返回property
           return variables.getProperty(key);
         }
       }
+      // 啥都没找到，就原样返回
       return "${" + content + "}";
     }
   }

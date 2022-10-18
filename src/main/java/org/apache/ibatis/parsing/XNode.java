@@ -15,29 +15,26 @@
  */
 package org.apache.ibatis.parsing;
 
+import org.w3c.dom.CharacterData;
+import org.w3c.dom.*;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.function.Supplier;
 
-import org.w3c.dom.CharacterData;
-import org.w3c.dom.Element;
-import org.w3c.dom.NamedNodeMap;
-import org.w3c.dom.Node;
-import org.w3c.dom.NodeList;
-
 /**
  * @author Clinton Begin
  */
 public class XNode {
 
-  private final Node node;
-  private final String name;
-  private final String body;
-  private final Properties attributes;
-  private final Properties variables;
-  private final XPathParser xpathParser;
+  private final Node node; // w3c包下的Node
+  private final String name; // Node节点名称
+  private final String body; // Node节点内容
+  private final Properties attributes; // 节点属性集合
+  private final Properties variables; // 变量表，即properties下定义的键值对
+  private final XPathParser xpathParser; // 生成本XNode的XPathParser对象
 
   public XNode(XPathParser xpathParser, Node node, Properties variables) {
     this.xpathParser = xpathParser;
