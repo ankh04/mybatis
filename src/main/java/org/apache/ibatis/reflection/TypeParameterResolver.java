@@ -26,6 +26,7 @@ import java.lang.reflect.WildcardType;
 import java.util.Arrays;
 
 /**
+ * 工具类：提供各种解析函数参数与返回类型的工具方法
  * @author Iwao AVE!
  */
 public class TypeParameterResolver {
@@ -41,8 +42,9 @@ public class TypeParameterResolver {
    *         they will be resolved to the actual runtime {@link Type}s.
    */
   public static Type resolveFieldType(Field field, Type srcType) {
-    Type fieldType = field.getGenericType();
-    Class<?> declaringClass = field.getDeclaringClass();
+    Type fieldType = field.getGenericType(); // 获得字段的"声明"类型
+    Class<?> declaringClass = field.getDeclaringClass(); // 获得声明该字段的类的类型
+    // 调用resolveType方法进行解析处理
     return resolveType(fieldType, srcType, declaringClass);
   }
 
@@ -84,11 +86,11 @@ public class TypeParameterResolver {
   }
 
   private static Type resolveType(Type type, Type srcType, Class<?> declaringClass) {
-    if (type instanceof TypeVariable) {
+    if (type instanceof TypeVariable) { // 解析TypeVariable类型, 比如List<T>中的T就是类型变量，类型变量是在编译时被确定为某个具体类型的（类型抹除）
       return resolveTypeVar((TypeVariable<?>) type, srcType, declaringClass);
-    } else if (type instanceof ParameterizedType) {
+    } else if (type instanceof ParameterizedType) { // 解析参数化类型,比如List<String>这种带有泛型的类型
       return resolveParameterizedType((ParameterizedType) type, srcType, declaringClass);
-    } else if (type instanceof GenericArrayType) {
+    } else if (type instanceof GenericArrayType) { // 解析泛型数组类型, 比如List<String>[] T[]
       return resolveGenericArrayType((GenericArrayType) type, srcType, declaringClass);
     } else {
       return type;
@@ -115,8 +117,9 @@ public class TypeParameterResolver {
   private static ParameterizedType resolveParameterizedType(ParameterizedType parameterizedType, Type srcType, Class<?> declaringClass) {
     Class<?> rawType = (Class<?>) parameterizedType.getRawType();
     Type[] typeArgs = parameterizedType.getActualTypeArguments();
-    Type[] args = new Type[typeArgs.length];
-    for (int i = 0; i < typeArgs.length; i++) {
+    Type[] args = new Type[typeArgs.length]; // 用于保存解析后的结果
+    for (int i = 0; i < typeArgs.length; i++) { // 解析每个参数化的类型 比如在Map<K, V>中，就是K和V
+      // 对于每个参数化的类型，分三种方式处理
       if (typeArgs[i] instanceof TypeVariable) {
         args[i] = resolveTypeVar((TypeVariable<?>) typeArgs[i], srcType, declaringClass);
       } else if (typeArgs[i] instanceof ParameterizedType) {
@@ -127,6 +130,7 @@ public class TypeParameterResolver {
         args[i] = typeArgs[i];
       }
     }
+    // 将解析结果封装成TypeParameterResolver中定义的ParameterizedType实现类型
     return new ParameterizedTypeImpl(rawType, null, args);
   }
 

@@ -15,35 +15,17 @@
  */
 package org.apache.ibatis.reflection;
 
+import org.apache.ibatis.reflection.invoker.*;
+import org.apache.ibatis.reflection.property.PropertyNamer;
+import org.apache.ibatis.util.MapUtil;
+
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
-import java.lang.reflect.Array;
-import java.lang.reflect.Constructor;
-import java.lang.reflect.Field;
-import java.lang.reflect.GenericArrayType;
-import java.lang.reflect.Method;
-import java.lang.reflect.Modifier;
-import java.lang.reflect.ParameterizedType;
-import java.lang.reflect.ReflectPermission;
-import java.lang.reflect.Type;
+import java.lang.reflect.*;
 import java.text.MessageFormat;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
+import java.util.*;
 import java.util.Map.Entry;
-
-import org.apache.ibatis.reflection.invoker.AmbiguousMethodInvoker;
-import org.apache.ibatis.reflection.invoker.GetFieldInvoker;
-import org.apache.ibatis.reflection.invoker.Invoker;
-import org.apache.ibatis.reflection.invoker.MethodInvoker;
-import org.apache.ibatis.reflection.invoker.SetFieldInvoker;
-import org.apache.ibatis.reflection.property.PropertyNamer;
-import org.apache.ibatis.util.MapUtil;
 
 /**
  * This class represents a cached set of class definition information that
@@ -54,24 +36,27 @@ import org.apache.ibatis.util.MapUtil;
 public class Reflector {
 
   private static final MethodHandle isRecordMethodHandle = getIsRecordMethodHandle();
-  private final Class<?> type;
-  private final String[] readablePropertyNames;
-  private final String[] writablePropertyNames;
-  private final Map<String, Invoker> setMethods = new HashMap<>();
-  private final Map<String, Invoker> getMethods = new HashMap<>();
-  private final Map<String, Class<?>> setTypes = new HashMap<>();
-  private final Map<String, Class<?>> getTypes = new HashMap<>();
-  private Constructor<?> defaultConstructor;
+  private final Class<?> type; // 需要代理的类
+  private final String[] readablePropertyNames; // 所有可读属性名的集合，由getMethods得来
+  private final String[] writablePropertyNames;// 所有可写属性名的集合，由getMethods得来
+  private final Map<String, Invoker> setMethods = new HashMap<>(); // 记录所有的setter方法，key是属性名，value是Invoker对象
+  private final Map<String, Invoker> getMethods = new HashMap<>(); // 记录所有的getter方法，key是属性名，value是Invoker对象
+  private final Map<String, Class<?>> setTypes = new HashMap<>(); // 记录setter方法的参数，key是属性名，value是setter方法的参数类型
+  private final Map<String, Class<?>> getTypes = new HashMap<>(); // 记录getter方法的返回类型，key是属性名，value是返回值类型
+  private Constructor<?> defaultConstructor; // 默认构造方法
 
-  private Map<String, String> caseInsensitivePropertyMap = new HashMap<>();
+  private Map<String, String> caseInsensitivePropertyMap = new HashMap<>(); // 所有属性名的集合（忽略大小写）
 
   public Reflector(Class<?> clazz) {
     type = clazz;
+    // 把clazz对应的无参构造器赋值给本地属性defaultConstructor
     addDefaultConstructor(clazz);
+    // 把clazz和它的父类中所有方法找出来
     Method[] classMethods = getClassMethods(clazz);
     if (isRecord(type)) {
       addRecordGetMethods(classMethods);
     } else {
+      // 调用下面的方法填充 setMethods getMethods setTypes getTypes这四个域
       addGetMethods(classMethods);
       addSetMethods(classMethods);
       addFields(clazz);
@@ -99,8 +84,10 @@ public class Reflector {
 
   private void addGetMethods(Method[] methods) {
     Map<String, List<Method>> conflictingGetters = new HashMap<>();
+    // 过滤出参数为零，方法名开头是 "get" 或是 "is" 的方法
     Arrays.stream(methods).filter(m -> m.getParameterTypes().length == 0 && PropertyNamer.isGetter(m.getName()))
       .forEach(m -> addMethodConflict(conflictingGetters, PropertyNamer.methodToProperty(m.getName()), m));
+    // 调用resolveGetterConflicts方法处理有重复的签名对应的方法
     resolveGetterConflicts(conflictingGetters);
   }
 
@@ -132,11 +119,13 @@ public class Reflector {
           break;
         }
       }
+      // 填充getMethods 和 getTypes 域
       addGetMethod(propName, winner, isAmbiguous);
     }
   }
 
   private void addGetMethod(String name, Method method, boolean isAmbiguous) {
+    // 将方法封装成 Invoker 对象
     MethodInvoker invoker = isAmbiguous
         ? new AmbiguousMethodInvoker(method, MessageFormat.format(
             "Illegal overloaded getter method with ambiguous type for property ''{0}'' in class ''{1}''. This breaks the JavaBeans specification and can cause unpredictable results.",
@@ -172,6 +161,7 @@ public class Reflector {
       for (Method setter : setters) {
         if (!isGetterAmbiguous && setter.getParameterTypes()[0].equals(getterType)) {
           // should be the best match
+          // 当第一个参数的类型和 getterType一致，就是最适合的方法，直接把setter赋值给match
           match = setter;
           break;
         }
@@ -286,33 +276,42 @@ public class Reflector {
    * @return An array containing all methods in this class
    */
   private Method[] getClassMethods(Class<?> clazz) {
+    // 存放所有方法的容器
     Map<String, Method> uniqueMethods = new HashMap<>();
     Class<?> currentClass = clazz;
     while (currentClass != null && currentClass != Object.class) {
+      // 记录当前类中的所有方法
       addUniqueMethods(uniqueMethods, currentClass.getDeclaredMethods());
 
       // we also need to look for interface methods -
       // because the class may be abstract
+      // 记录接口中的所有方法
       Class<?>[] interfaces = currentClass.getInterfaces();
       for (Class<?> anInterface : interfaces) {
         addUniqueMethods(uniqueMethods, anInterface.getMethods());
       }
 
+      // 处理当前类的父类
       currentClass = currentClass.getSuperclass();
     }
 
+    // 取出集合中的所有方法
     Collection<Method> methods = uniqueMethods.values();
 
+    // 将集合中的所有方法转化成数组
     return methods.toArray(new Method[0]);
   }
 
   private void addUniqueMethods(Map<String, Method> uniqueMethods, Method[] methods) {
     for (Method currentMethod : methods) {
       if (!currentMethod.isBridge()) {
+        // 为每个方法获得一个签名（该签名由"返回值类型" "方法名称" "参数类型"构成
+        // 父子类有可能有相同的签名，最后会在哈希容器中去重
         String signature = getSignature(currentMethod);
         // check to see if the method is already known
         // if it is known, then an extended class must have
         // overridden a method
+        // 去重
         if (!uniqueMethods.containsKey(signature)) {
           uniqueMethods.put(signature, currentMethod);
         }

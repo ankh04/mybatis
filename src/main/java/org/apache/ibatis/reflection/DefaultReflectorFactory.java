@@ -15,13 +15,14 @@
  */
 package org.apache.ibatis.reflection;
 
+import org.apache.ibatis.util.MapUtil;
+
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
-import org.apache.ibatis.util.MapUtil;
-
 public class DefaultReflectorFactory implements ReflectorFactory {
-  private boolean classCacheEnabled = true;
+  private boolean classCacheEnabled = true; // 这个字段决定是否对 Reflector 对象缓存 默认是开启的(通过构造器函数改变）
+  // 使用ConcurrentMap集合实现缓存，可以在多线程中使用
   private final ConcurrentMap<Class<?>, Reflector> reflectorMap = new ConcurrentHashMap<>();
 
   public DefaultReflectorFactory() {
@@ -41,6 +42,8 @@ public class DefaultReflectorFactory implements ReflectorFactory {
   public Reflector findForClass(Class<?> type) {
     if (classCacheEnabled) {
       // synchronized (type) removed see issue #461
+      // 如果缓存中有，就直接返回
+      // 如果没有，就创建新的
       return MapUtil.computeIfAbsent(reflectorMap, type, Reflector::new);
     } else {
       return new Reflector(type);

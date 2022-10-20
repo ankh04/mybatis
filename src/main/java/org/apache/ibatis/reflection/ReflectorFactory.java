@@ -15,6 +15,10 @@
  */
 package org.apache.ibatis.reflection;
 
+/**
+ * 创建Reflector的工厂的接口
+ * MyBatis只有一个实现类：DefaultReflectorFactory
+ */
 public interface ReflectorFactory {
 
   boolean isClassCacheEnabled();
